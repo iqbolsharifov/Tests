@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="tg"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Панели админ</title>
+<style>
+body{margin:0;background:#FBFAF5;color:#14263D;font:16px/1.45 system-ui,Arial,sans-serif}
+main{max-width:560px;margin:0 auto;padding:20px 16px}
+h1{font-size:1.6rem;margin:8px 0}h2{font-size:1.2rem;margin:18px 0 8px}
+button,input{font:inherit;color:inherit;box-sizing:border-box;width:100%;border:2px solid #D9DEE5;border-radius:14px;padding:12px;margin:0 0 10px;background:#fff}
+button{text-align:left;cursor:pointer}
+.go{background:#F2A900;border:0;font-weight:700;text-align:center}
+.sm{width:auto;padding:6px 12px;margin:6px 6px 0 0;font-size:.9rem}
+small,.net{color:#5B6B7F}.err{color:#C93C3C;min-height:1.2em}
+details{background:#fff;border:2px solid #D9DEE5;border-radius:14px;padding:10px;margin-bottom:8px}
+.ok{color:#1F8A5B}.no{color:#C93C3C}
+.note{background:#FFF6DD;border-radius:10px;padding:8px 10px;margin-bottom:8px}
+.card{background:#fff;border:2px solid #D9DEE5;border-radius:14px;padding:10px 12px;margin-bottom:8px}
+</style></head><body><main id="app"></main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,collection,getDocs,doc,getDoc,setDoc,updateDoc,deleteDoc,addDoc,query,where,orderBy,limit} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const cfg={apiKey:"AIzaSyBRI-jvoFr_8RCEXia4tY97igQImEfyaCs",authDomain:"viktorinai-maktabi.firebaseapp.com",projectId:"viktorinai-maktabi",storageBucket:"viktorinai-maktabi.firebasestorage.app",messagingSenderId:"249002369065",appId:"1:249002369065:web:bf7fa940ed06bc7e30fc38"};
+const fb=initializeApp(cfg),auth=getAuth(fb),db=getFirestore(fb);
+const app=document.getElementById("app"),$=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const mail=l=>l.toLowerCase()+"@viktorina.app";
+const fmt=t=>t?new Date(t).toLocaleString("ru-RU"):"-";
+const SETN={a:"Информатика 5-7",b:"Информатика 8-11"};
+const U={};let S=null,msg="";
+const arr=s=>{const a=[];s.forEach(d=>a.push({id:d.id,...d.data()}));return a};
+async function loadU(){const s=await getDocs(collection(db,"users"));Object.keys(U).forEach(k=>delete U[k]);arr(s).forEach(u=>U[u.id]=u)}
+function dl(name,rows){
+ const csv="\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download=name;a.click()}
+
+function loginScreen(){
+ app.innerHTML=`<h1>Панели админ</h1><input id="lg" placeholder="Логин" autocapitalize="off"><input id="pw" type="password" placeholder="Парол"><p class="err">${esc(msg)}</p><button class="go" id="ok">Ворид шудан</button>`;
+ $("ok").onclick=async()=>{msg="";
+  try{await signInWithEmailAndPassword(auth,mail($("lg").value.trim()),$("pw").value)}
+  catch(e){msg="Логин ё парол нодуруст";loginScreen()}}}
+
+onAuthStateChanged(auth,async u=>{
+ if(!u){loginScreen();return}
+ try{const s=await getDoc(doc(db,"users",u.uid));
+  if(!s.exists()||s.data().role!="admin"){msg="Шумо админ нестед";await signOut(auth);return}
+  await loadBank().catch(()=>{});home()}catch(e){msg="Хато: "+e.code;await signOut(auth)}});
+
+function home(){
+ app.innerHTML=`<h1>Панели админ</h1>
+ <button class="go" id="m8">📚 Банки саволҳо</button><button id="m1">👥 Иштирокчиён</button><button id="m2">🚩 Шикоятҳо</button><button id="m3">💬 Саволҳои хонандагон</button>
+ <button id="m4">📊 Омор: саволҳои душвор</button><button id="m5">⬇️ Хуруҷи CSV</button><button id="m6">+ Корбари нав</button><button id="m7">Баромадан</button>`;
+ $("m8").onclick=bank;$("m1").onclick=users;$("m2").onclick=reports;$("m3").onclick=posts;$("m4").onclick=stats;$("m5").onclick=exportCsv;$("m6").onclick=addForm;$("m7").onclick=()=>signOut(auth)}
+
+async function users(){
+ app.innerHTML="<h1>Иштирокчиён</h1><p class='net'>Бор шуда истодааст...</p>";
+ await loadU();
+ const a=Object.values(U).sort((x,y)=>(x.name||"").localeCompare(y.name||""));
+ app.innerHTML=`<h1>Иштирокчиён (${a.length})</h1><input id="q" placeholder="Ҷустуҷӯ..."><div id="ls"></div><button id="bk">Бозгашт</button>`;
+ const draw=()=>{const t=$("q").value.toLowerCase();
+  $("ls").innerHTML=a.filter(u=>((u.name||"")+(u.login||"")+(u.school||"")).toLowerCase().includes(t)).map(u=>`<button data-id="${u.id}"><b>${esc(u.name)}</b>${u.disabled?" 🚫":""}${u.muted?" 🔇":""}${u.role=="admin"?" ⭐":""}<br><small>${esc(u.login)} · муассиса №${esc(u.school)} · тестҳо: ${u.testsCount||0} · хол: ${u.totalCorrect||0}</small></button>`).join("");
+  [...$("ls").children].forEach(b=>b.onclick=()=>detail(b.dataset.id))};
+ $("q").oninput=draw;draw();$("bk").onclick=home}
+
+async function detail(id){
+ const u=U[id];
+ app.innerHTML=`<h1>${esc(u.name)}</h1><p class="net">Логин: ${esc(u.login)} · муассиса №${esc(u.school)}<br>Сабти ном: ${fmt(u.regAt)} · розигӣ: ${fmt(u.consentAt)}<br>Тестҳо: ${u.testsCount||0} · холи умумӣ: ${u.totalCorrect||0} · ҳафта: ${u.weekCorrect||0} · 🔥 ${u.streak||0}<br>Ҳолат: ${u.disabled?"блокшуда":"фаъол"} · навиштан: ${u.muted?"хомӯш":"озод"}</p>
+ ${u.role=="admin"?"":`<button id="bl">${u.disabled?"Боз кардан":"Блок кардан"}</button><button id="mu">${u.muted?"Навиштанро боз кардан":"Навиштанро хомӯш кардан"}</button><button id="dl">Нест кардан</button>`}
+ <h2>Коментарияҳо</h2><div id="nt" class="net">...</div><input id="nx" placeholder="Коментарияи нав"><button class="go" id="ns">Илова кардан</button>
+ <h2>Натиҷаҳо</h2><div id="rs" class="net">...</div><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=users;
+ if($("bl"))$("bl").onclick=async()=>{await updateDoc(doc(db,"users",id),{disabled:!u.disabled});u.disabled=!u.disabled;detail(id)};
+ if($("mu"))$("mu").onclick=async()=>{await updateDoc(doc(db,"users",id),{muted:!u.muted});u.muted=!u.muted;detail(id)};
+ if($("dl"))$("dl").onclick=async()=>{if(!confirm("Ҳақиқатан нест кунем? Логин дубора истифода намешавад."))return;await deleteDoc(doc(db,"users",id));delete U[id];users()};
+ $("ns").onclick=async()=>{const t=$("nx").value.trim();if(!t)return;await addDoc(collection(db,"notes"),{uid:id,text:t,ts:Date.now(),by:auth.currentUser.uid});detail(id)};
+ try{
+  const na=arr(await getDocs(query(collection(db,"notes"),where("uid","==",id)))).sort((x,y)=>y.ts-x.ts);
+  $("nt").innerHTML=na.length?na.map(x=>`<div class="note">${esc(x.text)}<br><small>${fmt(x.ts)}</small></div>`).join(""):"Коментария нест";
+  const ra=arr(await getDocs(query(collection(db,"results"),where("uid","==",id)))).sort((x,y)=>y.ts-x.ts);
+  $("rs").innerHTML=ra.length?ra.map(x=>`<details><summary>${fmt(x.ts)} · ${x.score}/${x.total} · ${esc(SETN[x.set]||x.set)}</summary>${(x.answers||[]).map(a=>`<p><span class="${a.ok?"ok":"no"}">${a.ok?"✓":"✗"}</span> ${esc(a.q)}<br><small>Ҷавоб: ${esc(a.a)}</small></p>`).join("")}</details>`).join(""):"Натиҷа нест";
+ }catch(e){$("rs").textContent="Хато: "+e.code}}
+
+async function reports(){
+ app.innerHTML="<h1>Шикоятҳо</h1><p class='net'>Бор шуда истодааст...</p>";
+ const a=arr(await getDocs(query(collection(db,"reports"),orderBy("ts","desc"),limit(100))));
+ app.innerHTML=`<h1>Шикоятҳо (${a.length})</h1>`+(a.map(r=>`<div class="card"><b>${r.type=="post"?"🚩 Паём":"⚠️ Хато дар савол"}</b> · ${esc(r.name)} · <small>${fmt(r.ts)}</small><br>${esc(r.text)}<br>${r.type=="post"?`<button class="sm" data-a="dp" data-id="${r.id}" data-ref="${esc(r.ref)}">Паёмро нест кардан</button>`:""}<button class="sm" data-a="dr" data-id="${r.id}">Шикоятро пӯшидан</button></div>`).join("")||"<p class='net'>Шикоят нест</p>")+`<button id="bk">Бозгашт</button>`;
+ $("bk").onclick=home;
+ app.querySelectorAll("button[data-a]").forEach(b=>b.onclick=async()=>{
+  if(b.dataset.a=="dp"){if(!confirm("Паёмро нест кунем?"))return;try{await deleteDoc(doc(db,"posts",b.dataset.ref))}catch(e){}}
+  await deleteDoc(doc(db,"reports",b.dataset.id));reports()})}
+
+async function posts(){
+ app.innerHTML="<h1>Саволҳои хонандагон</h1><p class='net'>Бор шуда истодааст...</p>";
+ const a=arr(await getDocs(collection(db,"posts"))).sort((x,y)=>y.ts-x.ts);
+ app.innerHTML=`<h1>Саволҳои хонандагон (${a.length})</h1><input id="ax" maxlength="500" placeholder="Ҷавоб ё паёми админ..."><button class="go" id="as">Фиристодан</button>`
+ +a.map(p=>`<div class="card"><b>${esc(p.name)}</b> <small>${fmt(p.ts)}</small><br>${esc(p.text)}<br><button class="sm" data-id="${p.id}">Нест кардан</button></div>`).join("")
+ +`<button id="bk">Бозгашт</button>`;
+ $("bk").onclick=home;
+ $("as").onclick=async()=>{const t=$("ax").value.trim();if(!t)return;await addDoc(collection(db,"posts"),{uid:auth.currentUser.uid,name:"Админ",text:t,ts:Date.now()});posts()};
+ app.querySelectorAll("button[data-id]").forEach(b=>b.onclick=async()=>{if(!confirm("Нест кунем?"))return;await deleteDoc(doc(db,"posts",b.dataset.id));posts()})}
+
+async function stats(){
+ app.innerHTML="<h1>Омор</h1><p class='net'>Бор шуда истодааст...</p>";
+ const rs=arr(await getDocs(query(collection(db,"results"),orderBy("ts","desc"),limit(500))));
+ const m={};
+ rs.forEach(r=>(r.answers||[]).forEach(a=>{const x=m[a.q]||(m[a.q]={n:0,w:0});x.n++;if(!a.ok)x.w++}));
+ const l=Object.entries(m).filter(([q,x])=>x.n>=3).map(([q,x])=>({q,n:x.n,w:x.w,p:Math.round(x.w/x.n*100)})).sort((a,b)=>b.p-a.p||b.n-a.n).slice(0,20);
+ app.innerHTML=`<h1>Саволҳои душвор</h1><p class="net">Аз ${rs.length} тести охирин. Саволҳое, ки камаш 3 маротиба ҷавоб дода шудаанд.</p>`
+ +(l.map(x=>`<div class="card"><b class="no">${x.p}%</b> нодуруст (${x.w} аз ${x.n})<br>${esc(x.q)}</div>`).join("")||"<p class='net'>Маълумот ҳоло кофӣ нест</p>")+`<button id="bk">Бозгашт</button>`;
+ $("bk").onclick=home}
+
+async function exportCsv(){
+ app.innerHTML="<h1>Хуруҷ</h1><p class='net'>Бор шуда истодааст...</p>";
+ await loadU();
+ dl("иштирокчиён.csv",[["Ном","Логин","Муассиса","Тестҳо","Холи умумӣ","Холи ҳафта","Серия","Санаи сабти ном"]]
+  .concat(Object.values(U).map(u=>[u.name,u.login,u.school,u.testsCount||0,u.totalCorrect||0,u.weekCorrect||0,u.streak||0,fmt(u.regAt)])));
+ const rs=arr(await getDocs(query(collection(db,"results"),orderBy("ts","desc"),limit(2000))));
+ dl("натиҷаҳо.csv",[["Ном","Логин","Муассиса","Фан","Хол","Аз","Сана"]]
+  .concat(rs.map(r=>{const u=U[r.uid]||{};return [u.name,u.login,u.school,SETN[r.set]||r.set,r.score,r.total,fmt(r.ts)]})));
+ app.innerHTML=`<h1>Хуруҷ</h1><p class="net">Ду файл зеркашӣ шуд. Агар браузер пурсад, зеркашии дуюмро иҷозат диҳед. Дар Excel ҷудокунанда «;» аст.</p><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=home}
+
+function addForm(){
+ app.innerHTML=`<h1>Корбари нав</h1><input id="nm" placeholder="Ном ва насаб"><input id="sc" placeholder="Рақами муассиса"><input id="lg" placeholder="Логин (ҳарфи лотинӣ ва рақам)" autocapitalize="off"><input id="pw" placeholder="Парол (камаш 6 аломат)"><p class="err" id="er"></p><button class="go" id="sv">Сохтан</button><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=home;
+ $("sv").onclick=async()=>{
+  const name=$("nm").value.trim(),school=$("sc").value.trim(),login=$("lg").value.trim().toLowerCase(),pw=$("pw").value;
+  if(!name||!school||!/^[a-z0-9_.]{3,20}$/.test(login)||pw.length<6){$("er").textContent="Ҳамаи майдонҳоро дуруст пур кунед";return}
+  try{
+   S=S||initializeApp(cfg,"sec");const sa=getAuth(S),sd=getFirestore(S);
+   const c=await createUserWithEmailAndPassword(sa,mail(login),pw);
+   await setDoc(doc(sd,"users",c.user.uid),{name,school,login,role:"student",testsCount:0,totalCorrect:0,weekCorrect:0,weekKey:0,streak:0,lastDay:0,photo:"",regAt:Date.now(),addedByAdmin:true});
+   await signOut(sa);home()
+  }catch(e){$("er").textContent=e.code=="auth/email-already-in-use"?"Ин логин банд аст":"Хато: "+(e.code||e.message)}}}
+  let BANK={};
+async function loadBank(){const s=await getDocs(collection(db,"bank"));BANK={};arr(s).forEach(b=>{b.items=b.items||[];BANK[b.id]=b;SETN[b.id]=b.title})}
+async function saveSet(id){const b=BANK[id];await setDoc(doc(db,"bank",id),{title:b.title,order:b.order||0,items:b.items});await setDoc(doc(db,"config","meta"),{ver:Date.now()})}
+
+async function bank(){
+ app.innerHTML="<h1>Банки саволҳо</h1><p class='net'>Бор шуда истодааст...</p>";
+ await loadBank();
+ const a=Object.values(BANK).sort((x,y)=>(x.order||0)-(y.order||0));
+ app.innerHTML=`<h1>Банки саволҳо</h1>${a.map(b=>`<button data-id="${esc(b.id)}"><b>${esc(b.title)}</b><br><small>${b.items.length} савол · рамз: ${esc(b.id)}</small></button>`).join("")||"<p class='net'>Ҳоло фан нест. Фани нав созед ва саволҳоро ворид кунед.</p>"}<button class="go" id="nw">+ Фани нав</button><button id="bk">Бозгашт</button>`;
+ [...app.querySelectorAll("button[data-id]")].forEach(b=>b.onclick=()=>setView(b.dataset.id));
+ $("nw").onclick=newSet;$("bk").onclick=home}
+
+function newSet(){
+ app.innerHTML=`<h1>Фани нав</h1><input id="si" placeholder="Рамз (ҳарфи лотинӣ, масалан: math)" autocapitalize="off"><input id="st" placeholder="Ном (масалан: Математика, синфҳои 5-7)"><input id="so" placeholder="Тартиб (рақам, масалан 3)" inputmode="numeric"><p class="err" id="er"></p><button class="go" id="sv">Сохтан</button><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=bank;
+ $("sv").onclick=async()=>{const id=$("si").value.trim().toLowerCase(),t=$("st").value.trim();
+  if(!/^[a-z0-9]{1,20}$/.test(id)||!t){$("er").textContent="Рамз (лотинӣ) ва номро пур кунед";return}
+  if(BANK[id]){$("er").textContent="Ин рамз аллакай ҳаст";return}
+  BANK[id]={id,title:t,order:+$("so").value||0,items:[]};
+  try{await saveSet(id);setView(id)}catch(e){$("er").textContent="Хато: "+(e.code||e.message)}}}
+
+function setView(id,qs){
+ const b=BANK[id];qs=qs||"";
+ app.innerHTML=`<h1>${esc(b.title)}</h1><p class="net">${b.items.length} савол · рамз: ${esc(id)}</p>
+ <button class="go" id="an">+ Саволи нав</button><button id="im">📥 Ворид кардани рӯйхат</button><button id="rn">✏️ Тағйири ном ва тартиб</button><button id="ds">🗑 Нест кардани фан</button>
+ <input id="sq" placeholder="Ҷустуҷӯ дар саволҳо..." value="${esc(qs)}"><div id="ql"></div><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=bank;$("an").onclick=()=>editQ(id,-1);$("im").onclick=()=>importView(id);
+ $("rn").onclick=async()=>{const t=prompt("Номи нав:",b.title);if(t===null)return;const o=prompt("Тартиб (рақам):",b.order||0);b.title=t.trim()||b.title;b.order=+o||0;await saveSet(id);setView(id)};
+ $("ds").onclick=async()=>{if(!confirm("Фани «"+b.title+"» бо ҳамаи саволҳояш нест шавад?"))return;if(!confirm("Боз як маротиба тасдиқ кунед: нест кардан барнагардонданист."))return;await deleteDoc(doc(db,"bank",id));await setDoc(doc(db,"config","meta"),{ver:Date.now()});delete BANK[id];bank()};
+ const draw=()=>{const t=$("sq").value.toLowerCase(),m=[];
+  b.items.forEach((x,k)=>{if(!t||x.q.toLowerCase().includes(t))m.push(k)});
+  $("ql").innerHTML=m.slice(0,30).map(k=>{const x=b.items[k];return `<div class="card"><b>${esc(x.q)}</b><br><span class="ok">✓ ${esc(x.r)}</span><br><small>${x.w.map(esc).join(" · ")}</small>${x.e?`<br><small>💡 ${esc(x.e)}</small>`:""}<br><button class="sm" data-e="${k}">Таҳрир</button><button class="sm" data-d="${k}">Нест</button></div>`}).join("")+(m.length>30?`<p class="net">Ва боз ${m.length-30}... Ҷустуҷӯро истифода баред.</p>`:"");
+  $("ql").querySelectorAll("[data-e]").forEach(x=>x.onclick=()=>editQ(id,+x.dataset.e));
+  $("ql").querySelectorAll("[data-d]").forEach(x=>x.onclick=async()=>{if(!confirm("Ин саволро нест кунем?"))return;b.items.splice(+x.dataset.d,1);await saveSet(id);setView(id,$("sq").value)})};
+ $("sq").oninput=draw;draw()}
+
+function editQ(id,k){
+ const b=BANK[id],x=k>=0?b.items[k]:{q:"",r:"",w:["","",""],e:""};
+ app.innerHTML=`<h1>${k>=0?"Таҳрири савол":"Саволи нав"}</h1><input id="q" placeholder="Савол" value="${esc(x.q)}"><input id="r" placeholder="Ҷавоби ДУРУСТ" value="${esc(x.r)}"><input id="w1" placeholder="Ҷавоби нодуруст 1" value="${esc(x.w[0])}"><input id="w2" placeholder="Ҷавоби нодуруст 2" value="${esc(x.w[1])}"><input id="w3" placeholder="Ҷавоби нодуруст 3" value="${esc(x.w[2])}"><input id="e" placeholder="Шарҳ (ихтиёрӣ)" value="${esc(x.e)}"><p class="err" id="er"></p><button class="go" id="sv">Захира кардан</button><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=()=>setView(id);
+ $("sv").onclick=async()=>{const v=i=>$(i).value.trim();
+  const it={q:v("q"),r:v("r"),w:[v("w1"),v("w2"),v("w3")],e:v("e")};
+  if(!it.q||!it.r||it.w.some(s=>!s)){$("er").textContent="Савол ва чор ҷавобро пур кунед";return}
+  if(k>=0)b.items[k]=it;else b.items.unshift(it);
+  try{await saveSet(id);setView(id)}catch(e){$("er").textContent="Хато: "+(e.code||e.message)}}}
+
+function importView(id){
+ app.innerHTML=`<h1>Ворид кардани рӯйхат</h1><p class="net">Матни байни [ ва ]-и рӯйхати кӯҳнаро (танҳо саволҳо, бе var A=[ ва бе ];) нусха карда гузоред. Формат: ["савол","дуруст","нодуруст","нодуруст","нодуруст"],</p><textarea id="ta" style="width:100%;height:180px;box-sizing:border-box;border:2px solid #D9DEE5;border-radius:14px;padding:10px;font:inherit;margin-bottom:10px"></textarea><p class="err" id="er"></p><button class="go" id="sv">Ворид кардан</button><button id="bk">Бозгашт</button>`;
+ $("bk").onclick=()=>setView(id);
+ $("sv").onclick=async()=>{
+  const t=$("ta").value.trim().replace(/,\s*$/,"");let L;
+  try{L=JSON.parse("["+t+"]")}catch(e){$("er").textContent="Формат нодуруст: "+e.message;return}
+  const b=BANK[id],have=new Set(b.items.map(x=>x.q));let n=0;
+  L.forEach(r=>{if(Array.isArray(r)&&r.length>=5&&r.slice(0,5).every(s=>typeof s=="string"&&s)&&!have.has(r[0])){b.items.push({q:r[0],r:r[1],w:[r[2],r[3],r[4]],e:r[5]||""});have.add(r[0]);n++}});
+  if(!n){$("er").textContent="Саволи нав ёфт нашуд (ё ҳама аллакай ҳастанд)";return}
+  try{await saveSet(id);alert("Илова шуд: "+n);setView(id)}catch(e){$("er").textContent="Хато: "+(e.code||e.message)}}}
+</script></body></html>
