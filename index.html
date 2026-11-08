@@ -7,6 +7,48 @@
 <link rel="manifest" href="manifest.json">
 <title>Викторина</title>
 <style>
+    <style>
+.admin-nav-container {
+    display: flex;
+    gap: 12px;
+    margin: 20px 0;
+    align-items: center;
+}
+
+.btn-admin, .btn-logout {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Дизайн барои тугмаи Админ (ранги кабуд/градиент) */
+.btn-admin {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: #ffffff;
+}
+
+.btn-admin:hover {
+    background: linear-gradient(135deg, #0056b3, #004085);
+    transform: translateY(-2px);
+}
+
+/* Дизайн барои тугмаи Хориҷ шудан (ранги сурхчатоб/хатар) */
+.btn-logout {
+    background: linear-gradient(135deg, #ff4d4d, #cc0000);
+    color: #ffffff;
+}
+
+.btn-logout:hover {
+    background: linear-gradient(135deg, #cc0000, #990000);
+    transform: translateY(-2px);
+}
+</style>
+
 body{margin:0;background:#FBFAF5;color:#14263D;font:16px/1.45 system-ui,Arial,sans-serif}
 main{max-width:480px;margin:0 auto;padding:20px 16px}
 h1{font-size:1.8rem;margin:8px 0}
@@ -885,6 +927,11 @@ if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.ser
 <a href="contact.html" class="admin-btn">
     <span class="btn-icon">💬</span> Тамос бо Админ
 </a>
+<!-- Қисми HTML барои тугмаҳо -->
+<div class="admin-nav-container">
+    <a href="admin.html" class="btn-admin">Панели Админ</a>
+    <a href="index.html" class="btn-logout">Хориҷ шудан</a>
+</div>
 
 
 </body></html>
